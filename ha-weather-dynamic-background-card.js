@@ -1349,7 +1349,15 @@ class SkyRenderer {
       const r = mulberry(99);
       this.glass = Array.from({ length: Math.round(35 * this.cur.rain) }, () => ({ ...this.newGlassDrop(r, this.w, this.h), life: 2, max: 1e9 }));
     } else this.glass = [];
-    this.draw(12.3);
+    try {
+      this.draw(12.3);
+    } catch (e) {
+      // same guard as loop(): a failed still frame must not throw into Home Assistant's hass setter
+      if (!this.warned) {
+        this.warned = true;
+        console.warn("weather-dynamic-background: a still frame failed", e);
+      }
+    }
   }
 
   draw(ts) {
