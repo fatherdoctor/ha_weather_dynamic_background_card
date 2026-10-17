@@ -32,6 +32,7 @@ const DEFAULTS = {
   show_rainbow: true,
   show_frost: true,
   show_shooting_stars: true,
+  speed: 1, // animation speed multiplier, 0.25-4
 };
 
 const DEVICE_DEFAULTS = { enabled: true, animations: "auto", quality: "auto" };
@@ -1163,14 +1164,15 @@ class SkyRenderer {
 
   loop(t) {
     if (!this.running) return;
-    const ts = t / 1000;
+    const sp = clamp(num(this.config && this.config.speed) || 1, 0.25, 4);
+    const ts = (t / 1000) * sp;
     const fast = this.needsFast();
     const fps = fast ? (this.mode.quality === "high" ? 60 : this.mode.quality === "low" ? 24 : 30) : 20;
     if (this.lastFrame && t - this.lastFrame < 1000 / fps - 2) {
       requestAnimationFrame(this._loop);
       return;
     }
-    const dt = this.lastFrame ? Math.min((t - this.lastFrame) / 1000, 0.1) : 1 / fps;
+    const dt = (this.lastFrame ? Math.min((t - this.lastFrame) / 1000, 0.1) : 1 / fps) * sp;
     this.lastFrame = t;
     const t0 = performance.now();
     try {

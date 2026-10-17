@@ -100,6 +100,7 @@ Everything can be set in the visual editor. These are the YAML options:
 | `kp_entity` | — | Optional sensor with the planetary Kp index for the aurora. |
 | `warning_entity` | — | Optional weather warning entity (e.g. Meteoalarm), see [Effects](#effects-gallery). |
 | `animations` | `true` | Animate rain, snow, clouds, stars and lightning. |
+| `speed` | `1` | Animation speed multiplier (0.25-4); `2` runs every effect twice as fast. |
 | `intensity` | `100` | Precipitation density, 20–200 %. |
 | `hysteresis` | `10` | Minutes a new weather state must last before the scene changes. Use `0` for instant changes. |
 | `dark_dim` | `40` | How much bright skies are dimmed in a dark theme, %. |
