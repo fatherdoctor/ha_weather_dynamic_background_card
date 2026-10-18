@@ -888,6 +888,19 @@ class SkyRenderer {
     this.el.remove();
   }
 
+  // Frees the GPU backing of every canvas this renderer owns. A detached canvas keeps its (accelerated) backing
+  // store for as long as it is referenced, so without this the full-screen layers and sprites stay allocated
+  // after the dashboard leaves the view. Only called on a renderer that is being dropped.
+  release() {
+    this.stop();
+    const sprites = [this.dropSprite, this.bokehSprite, this.flakeSprite, this.auroraSprite, this.surfaceSprite, this.moonSprite];
+    for (const d of this.deckImg) for (const k in d) sprites.push(d[k]);
+    for (const cv of [this.canvas, this.skyCanvas, this.cloudCanvas, this.glassCanvas, this.frostCanvas, ...sprites]) {
+      if (cv && "width" in cv) cv.width = cv.height = 0;
+    }
+    this.deckImg = [{}, {}];
+  }
+
   setMode(mode) {
     const changed = JSON.stringify(mode) !== JSON.stringify(this.mode);
     this.mode = mode;
@@ -1716,7 +1729,12 @@ class Manager {
 
   detach() {
     this.observer.disconnect();
-    if (this.renderer) this.renderer.unmount();
+    if (this.renderer) {
+      // drop the renderer rather than keep it for the next attach: its canvases hold GPU memory while referenced
+      this.renderer.unmount();
+      this.renderer.release();
+      this.renderer = null;
+    }
     this.container = null;
     const s = document.documentElement.style;
     for (const v of ["--wbg-active", "--wbg-sky-dark", "--wbg-sky-light", "--wbg-reduce-transparency"]) s.removeProperty(v);
