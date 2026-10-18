@@ -893,10 +893,16 @@ class SkyRenderer {
   // after the dashboard leaves the view. Only called on a renderer that is being dropped.
   release() {
     this.stop();
-    const sprites = [this.dropSprite, this.bokehSprite, this.flakeSprite, this.auroraSprite, this.surfaceSprite, this.moonSprite];
+    // the cloud-deck generation chain and the cross-fade settle timer would otherwise run on after this,
+    // drawing into the zeroed canvases (an InvalidStateError per detach in still mode)
+    this._released = true;
+    clearTimeout(this._genTimer);
+    clearTimeout(this._settleTimer);
+    this._genBusy = false;
+    const sprites = [this.dropSprite, this.bokehSprite, this.flakeSprite, this.auroraSprite, this.moonSprite];
     for (const d of this.deckImg) for (const k in d) sprites.push(d[k]);
     for (const cv of [this.canvas, this.skyCanvas, this.cloudCanvas, this.glassCanvas, this.frostCanvas, ...sprites]) {
-      if (cv && "width" in cv) cv.width = cv.height = 0;
+      if (cv) cv.width = cv.height = 0;
     }
     this.deckImg = [{}, {}];
   }
@@ -952,12 +958,14 @@ class SkyRenderer {
     if (this._genBusy || this.decks.every((d) => d.done)) return;
     this._genBusy = true;
     const run = () => {
+      this._genTimer = 0;
+      if (this._released) return;
       const more = this.genStep();
       if (!this.mode.animate) this.drawStatic();
-      if (more) setTimeout(run, 16);
+      if (more) this._genTimer = setTimeout(run, 16);
       else this._genBusy = false;
     };
-    setTimeout(run, 50);
+    this._genTimer = setTimeout(run, 50);
   }
 
   ensureFrost() {
