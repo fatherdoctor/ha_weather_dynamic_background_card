@@ -783,8 +783,10 @@ const LAYER_CSS = `
 .sky{position:absolute;inset:0}
 #skyB{opacity:0}
 #skyB.fade{transition:opacity 1.8s ease}
-#sun{position:absolute;border-radius:50%;width:150vmax;height:150vmax;left:86%;top:-6%;transform:translate(-50%,-50%);opacity:0;transition:opacity 2.5s ease, background 2.5s ease, left 6s ease, top 6s ease}
-#rainbow{--rb:max(170vmin,120vmax);position:absolute;width:var(--rb);height:var(--rb);left:20%;top:calc(100% - var(--rb) * 0.46);transform:translateX(-50%);opacity:0;transition:opacity 10s ease, left 6s ease;filter:blur(5px) saturate(.9);mix-blend-mode:screen;
+#sunpos,#rbpos{position:absolute;inset:0;transform:translate(86%,-6%);transition:transform 6s ease}
+#rbpos{transform:translateX(20%);mix-blend-mode:screen}
+#sun{position:absolute;border-radius:50%;width:150vmax;height:150vmax;left:0;top:0;transform:translate(-50%,-50%);opacity:0;transition:opacity 2.5s ease, background 2.5s ease}
+#rainbow{--rb:max(170vmin,120vmax);position:absolute;width:var(--rb);height:var(--rb);left:0;top:calc(100% - var(--rb) * 0.46);transform:translateX(-50%);opacity:0;transition:opacity 10s ease;filter:blur(5px) saturate(.9);
   background:
     radial-gradient(circle at 50% 50%,transparent 0 40.4%,rgba(255,255,255,.07) 41.4%,transparent 42.4%),
     radial-gradient(circle at 50% 50%,transparent 0 42%,rgba(130,95,205,.18) 42.8%,rgba(80,130,230,.28) 43.8%,rgba(90,200,150,.30) 44.8%,rgba(240,225,120,.32) 45.8%,rgba(250,170,90,.28) 46.8%,rgba(235,100,80,.22) 47.8%,transparent 49%),
@@ -815,10 +817,10 @@ class SkyRenderer {
     const root = this.el.attachShadow({ mode: "open" });
     root.innerHTML = `<style>${LAYER_CSS}</style>
       <div class="sky" id="skyA"></div><div class="sky" id="skyB"></div>
-      <div id="sun"></div>
+      <div id="sunpos"><div id="sun"></div></div>
       <canvas id="skyc"></canvas>
       <canvas id="cl"></canvas>
-      <div id="rainbow"></div>
+      <div id="rbpos"><div id="rainbow"></div></div>
       <canvas id="fx"></canvas>
       <canvas id="glass"></canvas>
       <canvas id="frost"></canvas>
@@ -1061,11 +1063,12 @@ class SkyRenderer {
     const mid = mixRgb([255, 232, 170], warm, scene.sunWarm);
     sun.style.background = `radial-gradient(circle, ${rgb(core, 0.95)} 0%, ${rgb(mid, 0.6)} 12%, ${rgb(mid, 0.18)} 32%, ${rgb(mid, 0)} 60%)`;
     sun.style.opacity = scene.sun.toFixed(3);
-    sun.style.left = `${(scene.sunX * 100).toFixed(1)}%`;
-    sun.style.top = `${(scene.sunY * 100).toFixed(1)}%`;
+    // move the full-size wrappers with a composited transform; their own size is the layer's, so a percentage
+    // translate is the same position the old left/top gave, without a relayout of the 150vmax glow every frame
+    this.$("sunpos").style.transform = `translate(${(scene.sunX * 100).toFixed(1)}%,${(scene.sunY * 100).toFixed(1)}%)`;
     const rb = this.$("rainbow");
     rb.style.opacity = scene.rainbow.toFixed(3);
-    if (scene.rainbow > 0.01) rb.style.left = `${(scene.rainbowX * 100).toFixed(1)}%`;
+    if (scene.rainbow > 0.01) this.$("rbpos").style.transform = `translateX(${(scene.rainbowX * 100).toFixed(1)}%)`;
     const smog = this.$("smog");
     smog.style.setProperty("--smogc", scene.day > 0.5 ? "168,150,122" : "58,52,46");
     smog.style.opacity = scene.smog.toFixed(3);
