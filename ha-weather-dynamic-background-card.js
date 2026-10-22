@@ -418,9 +418,12 @@ function moonSurface() {
 
 /* ------------------------------------------------------------------ scene */
 
+// No weather data: the time-of-day sky, muted toward overcast, with no clouds, sun, moon, stars or precipitation.
+const NEUTRAL = { cov: 70, pal: "overcast" };
+
 function computeScene(input, cfg) {
   const e = input.elevation;
-  const info = CONDITIONS[input.condition] || { cov: 50 };
+  const info = input.neutral ? NEUTRAL : CONDITIONS[input.condition] || { cov: 50 };
   const precip = !!(info.rain || info.snow || info.storm || info.hail || info.fog);
   let cov = num(input.coverage);
   cov = cov === undefined ? info.cov : cov;
@@ -480,7 +483,7 @@ function computeScene(input, cfg) {
   const aurora =
     kp === undefined ? 0 : smooth(kpNeed - 1, kpNeed + 1.5, kp) * (1 - smooth(-14, -8, e)) * (1 - smooth(35, 75, cov));
 
-  return {
+  const scene = {
     condition: input.condition,
     gradient: `linear-gradient(180deg, ${rgb(pal[0])} 0%, ${rgb(pal[1])} 38%, ${rgb(pal[2])} 72%, ${rgb(pal[3])} 100%)`,
     skyLum,
@@ -523,6 +526,10 @@ function computeScene(input, cfg) {
     aurora,
     warning: input.warning || 0,
   };
+  if (input.neutral) {
+    Object.assign(scene, { sun: 0, moon: 0, stars: 0, shooting: false, sheet: 0, cloudCount: 0, cloudLow: 0, rainbow: 0, aurora: 0 });
+  }
+  return scene;
 }
 
 /* ---------------------------------------------------------------- sprites */
@@ -1714,6 +1721,7 @@ class Manager {
     this.since = 0;
     this.lastInput = null;
     this.scene = null;
+    this.warnedNoWeather = false;
     this.reducedMotion = mq("(prefers-reduced-motion: reduce)");
     this.reducedTransparency = mq("(prefers-reduced-transparency: reduce)");
     const re = () => this.refresh();
@@ -1809,7 +1817,7 @@ class Manager {
     const cfg = this.config;
     const now = new Date();
     const input = {
-      condition: "partlycloudy",
+      condition: "unavailable",
       elevation: 20,
       moonPhase: moonPhase(now),
       southern: (hass?.config?.latitude ?? 52) < 0,
@@ -1884,19 +1892,33 @@ class Manager {
   refresh() {
     const input = this.readInput();
     if (input.condition === "unavailable" || input.condition === "unknown") {
-      input.condition = this.shown || "partlycloudy";
+      // keep the last real sky through an outage; with none yet, paint no weather rather than a guess
+      if (this.shown) input.condition = this.shown;
+      else input.neutral = true;
     }
-    input.condition = this.stableCondition(input.condition);
+    if (input.neutral) {
+      if (this.hass && !this.warnedNoWeather) {
+        this.warnedNoWeather = true;
+        const e = this.config.weather_entity;
+        const w = e && this.hass.states[e];
+        const why = !e ? "no weather entity is set" : w ? `${e} is ${w.state}` : `${e} was not found`;
+        console.warn(`weather-dynamic-background: ${why}; showing a neutral sky until it reports`);
+      }
+    } else {
+      this.warnedNoWeather = false;
+      input.condition = this.stableCondition(input.condition);
+    }
     // remember when it last rained, for the rainbow
     if (WET.includes(input.condition)) this.lastWet = Date.now();
     input.rainbow = !!this.lastWet && Date.now() - this.lastWet < 30 * 60000;
     const fx = this.sim.effect;
-    if (fx === "rainbow") Object.assign(input, { condition: "partlycloudy", coverage: 40, elevation: 14, rainbow: true });
+    if (fx === "rainbow") Object.assign(input, { condition: "partlycloudy", coverage: 40, elevation: 14, rainbow: true, neutral: false });
     if (fx === "frost") input.temperature = -8;
     if (fx === "smog") input.pm25 = 160;
-    if (fx === "aurora") Object.assign(input, { condition: "clear-night", coverage: 0, elevation: -25, kp: 9 });
+    if (fx === "aurora") Object.assign(input, { condition: "clear-night", coverage: 0, elevation: -25, kp: 9, neutral: false });
     if (fx === "warning") input.warning = 2;
     if (this.sim.condition) {
+      input.neutral = false;
       input.condition = this.sim.condition;
       if (CONDITIONS[this.sim.condition]) input.coverage = undefined;
     }
