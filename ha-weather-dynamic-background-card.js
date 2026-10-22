@@ -1604,6 +1604,7 @@ const mq = (q) => (window.matchMedia ? window.matchMedia(q) : { matches: false, 
 
 class Manager {
   constructor() {
+    this.version = VERSION;
     this.owners = new Set();
     this.renderer = null;
     this.container = null;
@@ -1819,6 +1820,8 @@ class Manager {
   }
 }
 
+// One manager per page. A second copy of this file (a stale HACS download next to a YAML resource, an old cached
+// build) reuses it, and its card class is never registered, so the copy loaded first is the one that runs.
 const manager = window.__haWeatherDynamicBackground || (window.__haWeatherDynamicBackground = new Manager());
 
 /* ------------------------------------------------------------------- card */
@@ -2064,6 +2067,13 @@ if (!customElements.get(TAG)) {
     documentationURL: REPO_URL,
   });
   console.info(`%c HA-WEATHER-DYNAMIC-BACKGROUND-CARD %c ${VERSION} `, "background:#3a7fcf;color:#fff;border-radius:4px 0 0 4px;padding:2px 4px", "background:#1c1c1e;color:#fff;border-radius:0 4px 4px 0;padding:2px 4px");
+} else {
+  // older managers carry no version
+  const running = manager.version || "an earlier version";
+  console.warn(
+    `weather-dynamic-background: this copy (${VERSION}) is not used; ${running} was loaded first and keeps running. ` +
+      "Remove the duplicate dashboard resource (HACS or YAML) and reload."
+  );
 }
 
 
