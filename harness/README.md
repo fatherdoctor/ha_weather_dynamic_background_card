@@ -9,3 +9,5 @@ and Chromium are the cloud session's; adjust them for another machine.
 - `wdb_trans.mjs <build.js>`: transitions on; the sun and rainbow are midway after 3 s of 6 s and `left` stays 0.
 - `wdb_fps.mjs <build.js>...`: loop() callbacks, drawn frames and rAF requests per second for 3 s of rain per
   quality, after five quick stop()/kick() pairs, and after stop().
+- `wdb_load.mjs <build.js>...` (review, WDB1ar): drawn frames per second with a busy main thread at quality `high`; then
+  `watchdog()` on a healthy and on a stalled loop, and `release()`: one request pending at most, none after release.
