@@ -5,6 +5,7 @@
 ### Fixes
 - Leaving the dashboard view now frees the background's canvases. The renderer was kept for the life of the page, so its full-screen layers and sprites held GPU memory after the view was left (about 165 MB on a 1920x1200 Fire HD 10). The next visit builds a fresh renderer, which regenerates the cloud decks.
 - The sun and the rainbow glide with a transform on a full-size wrapper instead of a `left`/`top` transition, so their 6 s glide no longer lays out the element on every frame. They appear in the same place as before.
+- The frame limiter waits for the next due frame on a timer instead of requesting every display frame, so the animation loop runs once per drawn frame (at 60 Hz: 20/30/60 calls a second at low/auto/high instead of 60). Only one animation request is ever pending, so a quick stop and restart no longer starts a second loop.
 
 ## 1.6.0 – first public release
 
