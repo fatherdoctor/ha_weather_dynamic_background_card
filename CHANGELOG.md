@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- The sun and the rainbow glide with a transform on a full-size wrapper instead of a `left`/`top` transition, so their 6 s glide no longer lays out the element on every frame. They appear in the same place as before.
+
 ## 1.6.0 – first public release
 
 ### Sky
