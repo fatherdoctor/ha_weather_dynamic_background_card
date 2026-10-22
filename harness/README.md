@@ -19,3 +19,11 @@ WDB1b checks, for `fix/neutral-sky` and `fix/version-guard`:
   each, and prints page errors.
 - `twocopies.mjs <a.js,b.js>...`: loads the builds in order on one page, each in its own block scope as module
   resources are, and prints the warnings, the running manager's version and the `customCards` count.
+
+WDB1br review checks (fable, 2026-10-22):
+
+- `dupload.mjs <a.js> <b.js>`: loads the two builds in order as classic scripts (a YAML resource of `type: js`) and
+  again as real `type="module"` scripts; prints warnings, page errors, the running manager's version, whether the
+  element is defined and the `customCards` count.
+- `neutral_static.mjs <build.js> <outdir>`: the neutral scene with animations off (`drawStatic`) plus frost, smog
+  and the warning glow; prints the scene fields and page errors, screenshots it.
