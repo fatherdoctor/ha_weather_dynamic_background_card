@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- The frame limiter waits for the next due frame on a timer instead of requesting every display frame, so the animation loop runs once per drawn frame (at 60 Hz: 20/30/60 calls a second at low/auto/high instead of 60). Only one animation request is ever pending, so a quick stop and restart no longer starts a second loop.
+
 ## 1.6.0 – first public release
 
 ### Sky
