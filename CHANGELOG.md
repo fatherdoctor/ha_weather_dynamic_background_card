@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- When a second copy of the card is loaded on the same page (a HACS download next to a YAML resource, or an old cached build), the copy that is not used logs one console warning naming both versions, instead of saying nothing while the first copy keeps running.
+
 ## 1.6.0 – first public release
 
 ### Sky
