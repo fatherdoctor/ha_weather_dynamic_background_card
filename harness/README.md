@@ -27,3 +27,17 @@ WDB1br review checks (fable, 2026-10-22):
   element is defined and the `customCards` count.
 - `neutral_static.mjs <build.js> <outdir>`: the neutral scene with animations off (`drawStatic`) plus frost, smog
   and the warning glow; prints the scene fields and page errors, screenshots it.
+
+WDB1c checks, for `fix/persist-memory` and `fix/pause-entity`:
+
+- `persist.mjs <build.js>...`: drives `manager` across simulated reloads (a new page on one origin, so localStorage
+  carries over) with a controlled `Date.now`: rain then a reload keeps the rain and the rainbow; a pending change
+  keeps its start time across a reload; a record older than the delay, from another entity, malformed or
+  future-dated is not restored; `hysteresis: 0` keeps only the last rain; 100 refreshes over two minutes write
+  twice; nothing is written before `hass`; on the patches build, an outage at load keeps a fresh remembered sky and
+  goes neutral once the entity's last report is older than the delay.
+- `pause.mjs <build.js>...`: mounts the layer through `manager` and counts drawn frames per 1.5 s while a fake
+  screensaver switch is off, on (also after hass updates, refresh and a direct `kick()`), unavailable or missing,
+  without `pause_entity`, and across a remount while on; then `battery_saver` with a stubbed `navigator.getBattery()`
+  (discharging, charger connected and removed, device quality High) and with no Battery API; and checks both
+  options are in the editor form with labels.
