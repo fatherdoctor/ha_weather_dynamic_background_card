@@ -30,6 +30,8 @@ const DEFAULTS = {
   pm25_entity: "",
   kp_entity: "",
   warning_entity: "",
+  pause_entity: "",
+  battery_saver: false,
   sun_azimuth: true,
   show_rainbow: true,
   show_frost: true,
@@ -165,6 +167,8 @@ const STRINGS = {
       pm25_entity: "PM2.5 sensor (optional) – smog",
       kp_entity: "Kp index (optional) – aurora",
       warning_entity: "Weather warnings (optional)",
+      pause_entity: "Pause while on (optional)",
+      battery_saver: "Power saving on battery",
       animations: "Animations",
       lightning_flash: "Lightning flashes",
       show_moon: "Moon",
@@ -184,6 +188,8 @@ const STRINGS = {
       pm25_entity: "Haze appears from about 25 µg/m³ and is dense above about 130 µg/m³.",
       kp_entity: "E.g. NOAA Space Weather. Aurora appears only when Kp is high enough for your latitude, at night and under a clear sky.",
       warning_entity: "E.g. Meteoalarm. The glow colour follows the warning level.",
+      pause_entity: "E.g. a kiosk app's screensaver switch. While it is on, the animation stops; a screensaver covers the page without hiding it, so the browser alone cannot tell.",
+      battery_saver: "With quality on Automatic, draws at Power saving while the device is not charging (where the browser reports the battery).",
       hysteresis: "How many minutes a new weather state has to last before the background changes.",
       lightning_flash: "Turned off automatically when the system asks to reduce motion.",
     },
@@ -246,6 +252,8 @@ const STRINGS = {
       pm25_entity: "Czujnik PM2.5 (opcjonalnie) – smog",
       kp_entity: "Indeks Kp (opcjonalnie) – zorza",
       warning_entity: "Ostrzeżenia pogodowe (opcjonalnie)",
+      pause_entity: "Pauza, gdy włączone (opcjonalnie)",
+      battery_saver: "Oszczędzanie energii na baterii",
       animations: "Animacje",
       lightning_flash: "Błyski podczas burzy",
       show_moon: "Księżyc",
@@ -265,6 +273,8 @@ const STRINGS = {
       pm25_entity: "Np. Airly lub GIOŚ. Od ok. 25 µg/m³ niebo robi się mgliste i brązowawe.",
       kp_entity: "Np. sensor NOAA Space Weather. Zorza pojawia się tylko, gdy Kp jest wystarczające dla Twojej szerokości geograficznej, w nocy i przy czystym niebie.",
       warning_entity: "Np. Meteoalarm lub IMGW. Kolor poświaty u góry zależy od stopnia ostrzeżenia.",
+      pause_entity: "Np. przełącznik wygaszacza ekranu w aplikacji kiosku. Gdy jest włączony, animacja się zatrzymuje; wygaszacz zasłania stronę, ale jej nie ukrywa, więc sama przeglądarka tego nie wie.",
+      battery_saver: "Przy jakości „Automatyczna” rysuje w jakości „Oszczędna”, gdy urządzenie nie jest ładowane (o ile przeglądarka podaje stan baterii).",
       hysteresis: "Ile minut nowy stan pogody musi się utrzymać, zanim tło się zmieni.",
       lightning_flash: "Wyłączane automatycznie przy systemowym „Ogranicz ruch”.",
     },
@@ -860,6 +870,7 @@ class SkyRenderer {
     this.mult = 1;
     this.costEma = 0;
     this.running = false;
+    this.paused = false;
     this.lastFrame = 0;
     this.rafId = 0;
     this.waitTimer = 0;
@@ -1140,8 +1151,17 @@ class SkyRenderer {
     b.style.opacity = "0";
   }
 
+  // A kiosk screensaver is usually another window over the WebView: document.hidden stays false and the loop would
+  // keep drawing behind a black screen. Manager.refresh() pauses it while the card's pause_entity is on.
+  setPaused(paused) {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (paused) this.stop();
+    else this.kick();
+  }
+
   kick() {
-    if (this.running || !this.mode.animate || document.hidden || !this.el.isConnected) return;
+    if (this.running || this.paused || !this.mode.animate || document.hidden || !this.el.isConnected) return;
     this.running = true;
     this.lastFrame = 0;
     this.lastWall = performance.now();
@@ -1797,6 +1817,7 @@ class Manager {
     const bg = container.querySelector(":scope > hui-view-background");
     this.renderer.mount(container, bg ? bg.nextSibling : container.firstChild);
     this.observer.observe(container, { childList: true });
+    this.renderer.setPaused(this.pauseWanted());
     this.renderer.setMode(this.mode());
     if (this.scene) this.renderer.setScene(this.scene);
     else this.refresh();
@@ -1827,11 +1848,38 @@ class Manager {
     const d = this.device;
     let animate = d.animations === "on" ? true : d.animations === "off" ? false : !!this.config.animations;
     if (d.animations === "auto" && this.reducedMotion.matches) animate = false;
+    const onBattery = !!this.config.battery_saver && !!this.battery && !this.battery.charging;
     return {
       animate,
-      quality: d.quality,
+      quality: d.quality === "auto" && onBattery ? "low" : d.quality,
       flash: !!this.config.lightning_flash && !this.reducedMotion.matches,
     };
+  }
+
+  // navigator.getBattery() exists in Chromium-based browsers and WebViews on a secure origin; elsewhere the option
+  // does nothing. Asked once, the first time a card turns the option on.
+  watchBattery() {
+    if (this.batteryAsked || !this.config.battery_saver) return;
+    this.batteryAsked = true;
+    let p;
+    try {
+      p = navigator.getBattery && navigator.getBattery();
+    } catch (e) {
+      return;
+    }
+    p?.then?.(
+      (b) => {
+        this.battery = b;
+        b.addEventListener?.("chargingchange", () => this.refresh());
+        this.refresh();
+      },
+      () => {}
+    );
+  }
+
+  pauseWanted() {
+    const e = this.config.pause_entity;
+    return !!e && this.hass?.states[e]?.state === "on";
   }
 
   update(card, hass, config) {
@@ -1956,6 +2004,7 @@ class Manager {
 
   refresh() {
     this.loadMemory();
+    this.watchBattery();
     const input = this.readInput();
     if (input.condition === "unavailable" || input.condition === "unknown") {
       // keep the last real sky through an outage; with none yet, paint no weather rather than a guess
@@ -2008,6 +2057,7 @@ class Manager {
       }
     }
     if (this.renderer && this.renderer.el.isConnected) {
+      this.renderer.setPaused(this.pauseWanted());
       this.renderer.watchdog();
       this.renderer.setMode(this.mode());
       this.renderer.setScene(scene);
@@ -2057,6 +2107,7 @@ class WeatherDynamicBackgroundCard extends HTMLElement {
         { name: "pm25_entity", selector: { entity: { domain: "sensor" } } },
         { name: "kp_entity", selector: { entity: { domain: "sensor" } } },
         { name: "warning_entity", selector: { entity: { domain: ["binary_sensor", "sensor"] } } },
+        { name: "pause_entity", selector: { entity: { domain: ["binary_sensor", "input_boolean", "switch"] } } },
         {
           type: "grid",
           name: "",
@@ -2069,6 +2120,7 @@ class WeatherDynamicBackgroundCard extends HTMLElement {
             { name: "sun_azimuth", selector: { boolean: {} } },
             { name: "show_rainbow", selector: { boolean: {} } },
             { name: "show_frost", selector: { boolean: {} } },
+            { name: "battery_saver", selector: { boolean: {} } },
           ],
         },
         { name: "intensity", selector: { number: { min: 20, max: 200, step: 10, unit_of_measurement: "%", mode: "slider" } } },

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+- `pause_entity`: while this `binary_sensor`, `input_boolean` or `switch` is `on`, the animation loop stops. Kiosk screensavers cover the page without hiding it, so the loop used to keep drawing behind a black screen.
+- `battery_saver` (off by default): with the device's quality on Automatic, the card draws at Power saving while the device is not charging, where the browser reports the battery.
+
 ### Fixes
 - Leaving the dashboard view now frees the background's canvases. The renderer was kept for the life of the page, so its full-screen layers and sprites held GPU memory after the view was left (about 165 MB on a 1920x1200 Fire HD 10). The next visit builds a fresh renderer, which regenerates the cloud decks.
 - The sun and the rainbow glide with a transform on a full-size wrapper instead of a `left`/`top` transition, so their 6 s glide no longer lays out the element on every frame. They appear in the same place as before.
