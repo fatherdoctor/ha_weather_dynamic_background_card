@@ -2208,7 +2208,7 @@ if (!customElements.get(TAG)) {
   const running = manager.version || "an earlier version";
   console.warn(
     `weather-dynamic-background: this copy (${VERSION}) is not used; ${running} was loaded first and keeps running. ` +
-      "Remove the duplicate dashboard resource (HACS or YAML) and reload."
+      "Reload the page; if this comes back, remove the duplicate dashboard resource (HACS or YAML)."
   );
 }
 

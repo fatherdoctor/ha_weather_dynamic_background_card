@@ -7,6 +7,7 @@
 - The sun and the rainbow glide with a transform on a full-size wrapper instead of a `left`/`top` transition, so their 6 s glide no longer lays out the element on every frame. They appear in the same place as before.
 - The frame limiter waits for the next due frame on a timer instead of requesting every display frame, so the animation loop runs once per drawn frame (at 60 Hz: 20/30/60 calls a second at low/auto/high instead of 60). Only one animation request is ever pending, so a quick stop and restart no longer starts a second loop.
 - Until the weather entity has reported a condition (it is `unavailable`, `unknown` or missing when the dashboard loads), the card shows a neutral sky - the time-of-day gradient muted toward overcast, with no clouds, sun, moon, stars, rainbow or precipitation - instead of a sunny partly cloudy scene, and logs one console warning. The neutral sky never enters the hysteresis, so the first real condition shows at once; an outage after a real condition keeps that condition, as before.
+- When a second copy of the card is loaded on the same page (a HACS download next to a YAML resource, or an old cached build), the copy that is not used logs one console warning naming both versions, instead of saying nothing while the first copy keeps running.
 
 ## 1.6.0 – first public release
 
