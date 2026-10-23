@@ -263,7 +263,7 @@ Adjust `hysteresis`. It is the number of minutes a new weather state must last.
 ## Limitations
 
 - To sit behind the view, the card inserts its layer into the Home Assistant frontend structure, right after the view background. It was developed against the Home Assistant 2026.10 frontend. Older versions are untested, and a future frontend redesign may need an update of the card.
-- The rainbow uses weather history kept in the browser. After a page reload, the card does not know that it just rained.
+- The rainbow and the scene-change delay use weather history kept in the browser (`localStorage`, per weather entity). It survives a page reload, but not clearing the site data or switching to another browser or device.
 - The weather state comes from your integration. Many forecast services report the current state with a delay.
 - The clouds sit at the top of the sky. With opaque default cards on a phone, much of them is hidden behind the first cards; translucent cards (below) show them best.
 - It is a decorative card. Nothing in it is meant for safety decisions, warnings included.
