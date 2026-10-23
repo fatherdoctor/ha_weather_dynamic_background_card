@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- `pause_entity`: while this `binary_sensor`, `input_boolean` or `switch` is `on`, the animation loop stops. Kiosk screensavers cover the page without hiding it, so the loop used to keep drawing behind a black screen.
+- `battery_saver` (off by default): with the device's quality on Automatic, the card draws at Power saving while the device is not charging, where the browser reports the battery.
+
 ## 1.6.0 – first public release
 
 ### Sky

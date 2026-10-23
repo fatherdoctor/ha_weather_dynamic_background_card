@@ -99,6 +99,8 @@ Everything can be set in the visual editor. These are the YAML options:
 | `pm25_entity` | — | Optional PM2.5 sensor (µg/m³) for smog. |
 | `kp_entity` | — | Optional sensor with the planetary Kp index for the aurora. |
 | `warning_entity` | — | Optional weather warning entity (e.g. Meteoalarm), see [Effects](#effects-gallery). |
+| `pause_entity` | — | Optional `binary_sensor`, `input_boolean` or `switch`. While it is `on`, the animation stops (the last frame stays). Meant for a kiosk screensaver: it covers the page without hiding it, so the card cannot tell on its own. To pause while an entity is `off` (a "screen on" switch), use a template binary sensor. |
+| `battery_saver` | `false` | With the device's quality on *Automatic*, draw at *Power saving* while the device is not charging. Needs a browser that reports the battery (Chromium-based browsers and Android WebViews on HTTPS); elsewhere it does nothing. |
 | `animations` | `true` | Animate rain, snow, clouds, stars and lightning. |
 | `intensity` | `100` | Precipitation density, 20–200 %. |
 | `hysteresis` | `10` | Minutes a new weather state must last before the scene changes. Use `0` for instant changes. |
