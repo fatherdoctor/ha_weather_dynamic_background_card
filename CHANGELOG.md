@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- Until the weather entity has reported a condition (it is `unavailable`, `unknown` or missing when the dashboard loads), the card shows a neutral sky - the time-of-day gradient muted toward overcast, with no clouds, sun, moon, stars, rainbow or precipitation - instead of a sunny partly cloudy scene, and logs one console warning. The neutral sky never enters the hysteresis, so the first real condition shows at once; an outage after a real condition keeps that condition, as before.
+
 ## 1.6.0 – first public release
 
 ### Sky
