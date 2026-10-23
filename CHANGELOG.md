@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- The scene-change delay (`hysteresis`) and the last rain are kept in `localStorage` per weather entity, so a page reload or a companion-app cache reset no longer restarts the delay or forgets that it just rained (the rainbow still shows for 30 minutes after rain). A shown condition last confirmed longer ago than the delay is not restored, so a reload after a long time shows the current weather at once.
+
 ## 1.6.0 – first public release
 
 ### Sky

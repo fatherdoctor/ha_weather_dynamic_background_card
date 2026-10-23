@@ -11,6 +11,8 @@
 const VERSION = "1.6.0";
 const TAG = "ha-weather-dynamic-background-card";
 const DEVICE_KEY = "ha-weather-dynamic-background-card:device";
+// + weather entity id: the scene-change delay and the last rain, so a reload does not start them over
+const MEMORY_KEY = "ha-weather-dynamic-background-card:memory:";
 
 const DEFAULTS = {
   weather_entity: "",
@@ -1574,6 +1576,28 @@ function writeDevice(d) {
   }
 }
 
+// The record for one weather entity, or null. Timestamps from the future (a clock change) are dropped.
+function readMemory(entity) {
+  try {
+    const m = JSON.parse(localStorage.getItem(MEMORY_KEY + entity) || "null");
+    if (!m || typeof m !== "object") return null;
+    const now = Date.now();
+    const t = (v) => (Number.isFinite(v) && v > 0 && v <= now ? v : 0);
+    const c = (v) => (typeof v === "string" && v && v.length <= 40 && v !== "unavailable" && v !== "unknown" ? v : null);
+    return { shown: c(m.shown), candidate: c(m.candidate), since: t(m.since), lastWet: t(m.lastWet), seen: t(m.seen) };
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeMemory(entity, m) {
+  try {
+    localStorage.setItem(MEMORY_KEY + entity, JSON.stringify(m));
+  } catch (e) {
+    /* storage unavailable */
+  }
+}
+
 const WET = ["rainy", "pouring", "lightning-rainy", "snowy-rainy", "hail"];
 
 // Weather warning level 0–3 from Meteoalarm, IMGW or any on/off or numeric entity.
@@ -1614,6 +1638,10 @@ class Manager {
     this.shown = null;
     this.candidate = null;
     this.since = 0;
+    this.lastWet = 0;
+    this.memoryEntity = null;
+    this.savedMemory = "";
+    this.savedAt = 0;
     this.lastInput = null;
     this.scene = null;
     this.reducedMotion = mq("(prefers-reduced-motion: reduce)");
@@ -1756,6 +1784,42 @@ class Manager {
     return input;
   }
 
+  // The shown condition, the pending one and the last rain are kept per weather entity in localStorage, so a reload
+  // or a companion-app cache reset neither restarts the scene-change delay nor forgets that it just rained. A shown
+  // condition last confirmed longer ago than the delay is not restored: any change it held back would show by now.
+  loadMemory() {
+    const entity = this.config.weather_entity || "";
+    if (entity === this.memoryEntity) return;
+    this.memoryEntity = entity;
+    this.shown = null;
+    this.candidate = null;
+    this.since = 0;
+    this.lastWet = 0;
+    this.savedMemory = "";
+    const m = entity && readMemory(entity);
+    if (!m) return;
+    const hyst = Math.max(0, num(this.config.hysteresis) ?? 10) * 60000;
+    if (m.shown && m.seen && Date.now() - m.seen < hyst) {
+      this.shown = m.shown;
+      if (m.candidate && m.since) {
+        this.candidate = m.candidate;
+        this.since = m.since;
+      }
+    }
+    this.lastWet = m.lastWet;
+  }
+
+  // At most one write a minute while nothing changes (the minute stamp keeps `seen` fresh); at once on a change.
+  saveMemory() {
+    if (!this.memoryEntity || !this.hass) return;
+    const now = Date.now();
+    const key = JSON.stringify([this.shown, this.candidate, this.since, Math.floor(this.lastWet / 60000)]);
+    if (key === this.savedMemory && now - this.savedAt < 60000) return;
+    this.savedMemory = key;
+    this.savedAt = now;
+    writeMemory(this.memoryEntity, { shown: this.shown, candidate: this.candidate, since: this.since, lastWet: this.lastWet, seen: now });
+  }
+
   stableCondition(cond) {
     const now = Date.now();
     const hyst = Math.max(0, num(this.config.hysteresis) ?? 10) * 60000;
@@ -1779,6 +1843,7 @@ class Manager {
   }
 
   refresh() {
+    this.loadMemory();
     const input = this.readInput();
     if (input.condition === "unavailable" || input.condition === "unknown") {
       input.condition = this.shown || "partlycloudy";
@@ -1787,6 +1852,7 @@ class Manager {
     // remember when it last rained, for the rainbow
     if (WET.includes(input.condition)) this.lastWet = Date.now();
     input.rainbow = !!this.lastWet && Date.now() - this.lastWet < 30 * 60000;
+    this.saveMemory();
     const fx = this.sim.effect;
     if (fx === "rainbow") Object.assign(input, { condition: "partlycloudy", coverage: 40, elevation: 14, rainbow: true });
     if (fx === "frost") input.temperature = -8;
