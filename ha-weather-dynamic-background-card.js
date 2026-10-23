@@ -1642,6 +1642,7 @@ class Manager {
     this.memoryEntity = null;
     this.savedMemory = "";
     this.savedAt = 0;
+    this.confirmed = 0;
     this.lastInput = null;
     this.scene = null;
     this.reducedMotion = mq("(prefers-reduced-motion: reduce)");
@@ -1796,11 +1797,13 @@ class Manager {
     this.since = 0;
     this.lastWet = 0;
     this.savedMemory = "";
+    this.confirmed = 0;
     const m = entity && readMemory(entity);
     if (!m) return;
     const hyst = Math.max(0, num(this.config.hysteresis) ?? 10) * 60000;
     if (m.shown && m.seen && Date.now() - m.seen < hyst) {
       this.shown = m.shown;
+      this.confirmed = m.seen;
       if (m.candidate && m.since) {
         this.candidate = m.candidate;
         this.since = m.since;
@@ -1809,15 +1812,18 @@ class Manager {
     this.lastWet = m.lastWet;
   }
 
-  // At most one write a minute while nothing changes (the minute stamp keeps `seen` fresh); at once on a change.
+  // At most one write a minute while nothing changes; at once on a change. `seen` is the last time the entity
+  // itself reported a condition, so reloads during an outage do not keep a remembered sky alive.
   saveMemory() {
     if (!this.memoryEntity || !this.hass) return;
     const now = Date.now();
-    const key = JSON.stringify([this.shown, this.candidate, this.since, Math.floor(this.lastWet / 60000)]);
+    const st = this.hass.states[this.memoryEntity]?.state;
+    if (st && st !== "unavailable" && st !== "unknown") this.confirmed = now;
+    const key = JSON.stringify([this.shown, this.candidate, this.since, Math.floor(this.lastWet / 60000), Math.floor(this.confirmed / 60000)]);
     if (key === this.savedMemory && now - this.savedAt < 60000) return;
     this.savedMemory = key;
     this.savedAt = now;
-    writeMemory(this.memoryEntity, { shown: this.shown, candidate: this.candidate, since: this.since, lastWet: this.lastWet, seen: now });
+    writeMemory(this.memoryEntity, { shown: this.shown, candidate: this.candidate, since: this.since, lastWet: this.lastWet, seen: this.confirmed });
   }
 
   stableCondition(cond) {
