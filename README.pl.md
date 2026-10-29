@@ -107,8 +107,8 @@ Wszystko da się ustawić w edytorze wizualnym. Opcje YAML:
 | `pm25_entity` | — | Opcjonalny czujnik PM2.5 (µg/m³) do smogu. |
 | `kp_entity` | — | Opcjonalny sensor z planetarnym indeksem Kp do zorzy. |
 | `warning_entity` | — | Opcjonalna encja ostrzeżeń (np. Meteoalarm), zob. [Galeria efektów](#galeria-efektów). |
-| `pause_entity` | — | Opcjonalny `binary_sensor`, `input_boolean` lub `switch`. Gdy jest `on`, animacja się zatrzymuje (zostaje ostatnia klatka). Z myślą o wygaszaczu ekranu w kiosku: zasłania on stronę, ale jej nie ukrywa, więc karta sama tego nie wykryje. Aby pauzować, gdy encja jest `off` (przełącznik „ekran włączony”), użyj szablonowego binary sensora. |
-| `battery_saver` | `false` | Przy jakości urządzenia *Automatyczna* rysuje w jakości *Oszczędna*, gdy urządzenie nie jest ładowane. Wymaga przeglądarki, która podaje stan baterii (przeglądarki oparte na Chromium i Android WebView przez HTTPS); w innych nic nie robi. |
+| `pause_entity` | — | Opcjonalny `binary_sensor`, `input_boolean` lub `switch`. Gdy jest `on`, tło stoi w miejscu: zostaje ostatnia klatka, nic nie jest rysowane, animacje CSS i timery tła się zatrzymują, a zmiany pogody, jakości lub rozmiaru czekają na wyłączenie. Z myślą o wygaszaczu ekranu w kiosku rysowanym nad stroną: strona nie jest ukryta, więc karta sama tego nie wykryje. Podczas pauzy karta nadal raz na minutę odczytuje stany z Home Assistanta. Aby pauzować, gdy encja jest `off` (przełącznik „ekran włączony”), użyj szablonowego binary sensora. |
+| `battery_saver` | `false` | Przy jakości urządzenia *Automatyczna* rysuje w jakości *Oszczędna*, gdy urządzenie nie jest ładowane. Wymaga przeglądarki, która podaje stan baterii (`navigator.getBattery()`, przeglądarki oparte na Chromium przez HTTPS); w innych nic nie robi. |
 | `animations` | `true` | Animacje deszczu, śniegu, chmur, gwiazd i piorunów. |
 | `intensity` | `100` | Gęstość opadów, 20–200 %. |
 | `hysteresis` | `10` | Ile minut nowy stan pogody musi się utrzymać, zanim zmieni się scena. `0` oznacza natychmiast. |

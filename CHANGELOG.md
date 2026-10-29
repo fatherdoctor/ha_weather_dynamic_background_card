@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Features
-- `pause_entity`: while this `binary_sensor`, `input_boolean` or `switch` is `on`, the animation loop stops. Kiosk screensavers cover the page without hiding it, so the loop used to keep drawing behind a black screen.
+- `pause_entity`: while this `binary_sensor`, `input_boolean` or `switch` is `on`, the background stands still: the last frame stays, and drawing, its CSS animations and its timers stop until it turns off. A kiosk screensaver drawn over the page does not hide it, so the loop used to keep drawing behind a black screen.
 - `battery_saver` (off by default): with the device's quality on Automatic, the card draws at Power saving while the device is not charging, where the browser reports the battery.
 
 ### Fixes
