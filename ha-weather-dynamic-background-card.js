@@ -859,6 +859,10 @@ class SkyRenderer {
     this.costEma = 0;
     this.running = false;
     this.paused = false;
+    this.held = [];
+    this.pendingMode = null;
+    this.pendingScene = null;
+    this.pendingResize = false;
     this.lastFrame = 0;
     this.rafId = 0;
     this.waitTimer = 0;
@@ -901,6 +905,10 @@ class SkyRenderer {
   }
 
   setMode(mode) {
+    if (this.frozen()) {
+      this.pendingMode = mode;
+      return;
+    }
     const changed = JSON.stringify(mode) !== JSON.stringify(this.mode);
     this.mode = mode;
     this.el.classList.toggle("still", !mode.animate);
@@ -912,6 +920,11 @@ class SkyRenderer {
   }
 
   resize() {
+    // resizing a canvas clears it: while paused the last frame stays and the resize waits for the resume
+    if (this.frozen()) {
+      this.pendingResize = true;
+      return;
+    }
     const w = window.innerWidth || 390;
     const h = window.innerHeight || 844;
     const q = this.mode.quality;
@@ -945,9 +958,13 @@ class SkyRenderer {
   }
 
   scheduleGen() {
-    if (this._genBusy || this.decks.every((d) => d.done)) return;
+    if (this._genBusy || this.paused || this.decks.every((d) => d.done)) return;
     this._genBusy = true;
     const run = () => {
+      if (this.paused) {
+        this._genBusy = false;
+        return;
+      }
       const more = this.genStep();
       if (!this.mode.animate) this.drawStatic();
       if (more) setTimeout(run, 16);
@@ -1036,6 +1053,10 @@ class SkyRenderer {
   }
 
   setScene(scene) {
+    if (this.frozen()) {
+      this.pendingScene = scene;
+      return;
+    }
     this.target = scene;
     if (scene.cloudCount > 0.01 || scene.fog > 0.01) this.scheduleGen();
     if (!this.cur || !this.mode.animate) this.cur = { ...scene };
@@ -1076,7 +1097,8 @@ class SkyRenderer {
     }
     this.$("dim").style.opacity = (scene.dim || 0).toFixed(3);
     this.$("lift").style.opacity = (scene.lift || 0).toFixed(3);
-    if (!this.mode.animate) this.drawStatic();
+    if (this.paused) this.holdAnimations(true);
+    else if (!this.mode.animate) this.drawStatic();
     else this.kick();
   }
 
@@ -1112,12 +1134,54 @@ class SkyRenderer {
   }
 
   // A kiosk screensaver is usually another window over the WebView: document.hidden stays false and the loop would
-  // keep drawing behind a black screen. Manager.refresh() pauses it while the card's pause_entity is on.
+  // keep drawing behind a black screen. Manager.refresh() pauses it while the card's pause_entity is on. Paused, the
+  // layer is a still picture: no frames, no CSS animations or transitions, no cloud generation or sky-fade timers.
+  // Scene, mode and size changes wait and are applied on resume. A layer paused before its first scene shows that
+  // scene's sky (CSS only, transitions finished) and draws nothing on the canvases until the resume.
   setPaused(paused) {
     if (paused === this.paused) return;
     this.paused = paused;
-    if (paused) this.stop();
-    else this.kick();
+    if (paused) {
+      this.stop();
+      clearTimeout(this._settleTimer);
+      this.holdAnimations(false);
+      return;
+    }
+    for (const a of this.held) if (a.playState === "paused") a.play();
+    this.held = [];
+    const mode = this.pendingMode;
+    const scene = this.pendingScene;
+    this.pendingMode = this.pendingScene = null;
+    if (mode) this.setMode(mode);
+    if (this.pendingResize) {
+      this.pendingResize = false;
+      this.resize();
+    }
+    if (this.$("skyB").style.opacity === "1") this._settleTimer = setTimeout(() => this._settleSky(), 2200);
+    if (scene) this.setScene(scene);
+    else if (this.target) {
+      if (this.target.cloudCount > 0.01 || this.target.fog > 0.01) this.scheduleGen();
+      if (!this.mode.animate) this.drawStatic();
+      else this.kick();
+    }
+  }
+
+  // true once there is a frame to keep
+  frozen() {
+    return this.paused && !!this.target;
+  }
+
+  // Pauses the layer's running CSS animations and transitions (the fog drift, the warning glow, fades in progress);
+  // setPaused(false) plays them on. `finish` jumps transitions to their end instead, for a scene set while paused.
+  holdAnimations(finish) {
+    for (const a of this.el.shadowRoot.getAnimations?.() || []) {
+      if (a.playState !== "running") continue;
+      if (finish && typeof CSSTransition !== "undefined" && a instanceof CSSTransition) a.finish();
+      else {
+        a.pause();
+        this.held.push(a);
+      }
+    }
   }
 
   kick() {

@@ -99,8 +99,8 @@ Everything can be set in the visual editor. These are the YAML options:
 | `pm25_entity` | — | Optional PM2.5 sensor (µg/m³) for smog. |
 | `kp_entity` | — | Optional sensor with the planetary Kp index for the aurora. |
 | `warning_entity` | — | Optional weather warning entity (e.g. Meteoalarm), see [Effects](#effects-gallery). |
-| `pause_entity` | — | Optional `binary_sensor`, `input_boolean` or `switch`. While it is `on`, the animation stops (the last frame stays). Meant for a kiosk screensaver: it covers the page without hiding it, so the card cannot tell on its own. To pause while an entity is `off` (a "screen on" switch), use a template binary sensor. |
-| `battery_saver` | `false` | With the device's quality on *Automatic*, draw at *Power saving* while the device is not charging. Needs a browser that reports the battery (Chromium-based browsers and Android WebViews on HTTPS); elsewhere it does nothing. |
+| `pause_entity` | — | Optional `binary_sensor`, `input_boolean` or `switch`. While it is `on`, the background stands still: the last frame stays, no frames are drawn, its CSS animations and timers stop, and weather, quality or size changes wait until it turns off. Meant for a kiosk screensaver drawn over the page: the page is not hidden, so the card cannot tell on its own. The card still reads Home Assistant states once a minute while paused. To pause while an entity is `off` (a "screen on" switch), use a template binary sensor. |
+| `battery_saver` | `false` | With the device's quality on *Automatic*, draw at *Power saving* while the device is not charging. Needs a browser that reports the battery (`navigator.getBattery()`, Chromium-based browsers on HTTPS); elsewhere it does nothing. |
 | `animations` | `true` | Animate rain, snow, clouds, stars and lightning. |
 | `intensity` | `100` | Precipitation density, 20–200 %. |
 | `hysteresis` | `10` | Minutes a new weather state must last before the scene changes. Use `0` for instant changes. |
