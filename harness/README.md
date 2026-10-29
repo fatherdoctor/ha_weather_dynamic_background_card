@@ -41,3 +41,18 @@ WDB1c checks, for `fix/persist-memory` and `fix/pause-entity`:
   without `pause_entity`, and across a remount while on; then `battery_saver` with a stubbed `navigator.getBattery()`
   (discharging, charger connected and removed, device quality High) and with no Battery API; and checks both
   options are in the editor form with labels.
+
+WDB1c.f checks (opus, 2026-10-28), from the WDB1cr review's probe scenarios; each prints PASS/FAIL per check and
+exits non-zero on a failure:
+
+- `persist-extra.mjs <build.js>...`: P1 the real element set up as Lovelace does (append, `setConfig`, then `hass`)
+  reads and writes no weather memory before `hass` and keeps a pending change's start across the reload; P2 the
+  record's `seen` is the entity's `last_updated`, not the time of refreshes, so an outage reload does not restore an
+  old sky; P3 100 alternating updates at one instant and an unchanged state across a minute boundary write nothing
+  more, a held change is written when the minute is up; P4 an unknown condition, a future-dated timestamp, a
+  non-object and a pending change without a shown one each make the whole record ignored.
+- `pause-extra.mjs <build.js>...`: A1 five immediate screensaver on/off pairs leave one animation chain, and none
+  after the pause; A2 while paused no loop callbacks, no running CSS animations (fog, warning glow), no cloud
+  generation, no sky fade on a scene change, and a quality change plus a window resize keep the drawn pixels; on
+  resume the waiting quality and scene apply and the animations and loop run again.
+- `persist.mjs` now gives states a `last_updated` (the step's `lu` minute, else the clock), as Home Assistant does.

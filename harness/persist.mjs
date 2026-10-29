@@ -1,4 +1,4 @@
-// WDB1c checks for fix/persist-memory: drives `manager` across simulated reloads (a new page on the same origin, so
+// WDB1c checks for fix/persist-memory (states carry last_updated since WDB1c.f): drives `manager` across simulated reloads (a new page on the same origin, so
 // localStorage carries over) with a controllable Date.now; no renderer mounted.
 import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 import fs from 'fs';
@@ -20,15 +20,16 @@ for (const f of process.argv.slice(2)) {
       let writes = 0;
       const orig = Storage.prototype.setItem;
       Storage.prototype.setItem = function (k, v) { if (k.includes(':memory:')) writes++; return orig.call(this, k, v); };
-      const st = (state) => ({ state, attributes: {} });
-      const hass = (e, c) => ({ config: { latitude: 30 }, themes: { darkMode: false },
-        states: { 'sun.sun': { state: 'above_horizon', attributes: { elevation: 30, azimuth: 180 } }, [e]: st(c) } });
+      // states carry last_updated like Home Assistant's: the step's `lu` minute, else the clock (a fresh report)
+      const st = (state, lu) => ({ state, attributes: {}, last_updated: new Date(lu === undefined ? window.__now : BASE + lu * MIN).toISOString() });
+      const hass = (e, c, lu) => ({ config: { latitude: 30 }, themes: { darkMode: false },
+        states: { 'sun.sun': { state: 'above_horizon', attributes: { elevation: 30, azimuth: 180 } }, [e]: st(c, lu) } });
       const res = [];
       for (const s of steps) {
         if (s.at !== undefined) window.__now = BASE + s.at * MIN;
         if (s.raw) { localStorage.setItem(s.raw[0], s.raw[1]); continue; }
         manager.config = { ...manager.config, weather_entity: s.e || 'weather.home', hysteresis: s.h ?? 10 };
-        manager.hass = s.nohass ? null : hass(s.e || 'weather.home', s.c);
+        manager.hass = s.nohass ? null : hass(s.e || 'weather.home', s.c, s.lu);
         for (let i = 0; i < (s.n || 1); i++) manager.refresh();
         res.push({ c: s.c, shown: manager.shown, cand: manager.candidate,
           sinceMin: manager.since ? (manager.since - BASE) / MIN : 0, rainbow: manager.lastInput.rainbow, cond: manager.lastInput.condition, neutral: !!manager.lastInput.neutral });
@@ -43,7 +44,7 @@ for (const f of process.argv.slice(2)) {
   show('A1 rain at 0', await load(0, [{ c: 'rainy' }]));
   show('A2 reload at 5, cloudy', await load(5, [{ c: 'cloudy' }, { c: 'cloudy', at: 14 }, { c: 'cloudy', at: 15 }]));
   show('B1 clear 20, cloudy from 22', await load(20, [{ c: 'clear-night', e: 'weather.b' }, { c: 'cloudy', at: 22, e: 'weather.b' }]));
-  show('B2 reload 25: cloudy due at 32', await load(25, [{ c: 'cloudy', e: 'weather.b' }, { c: 'cloudy', at: 31, e: 'weather.b' }, { c: 'cloudy', at: 32, e: 'weather.b' }]));
+  show('B2 reload 25: cloudy due at 32', await load(25, [{ c: 'cloudy', e: 'weather.b', lu: 22 }, { c: 'cloudy', at: 31, e: 'weather.b', lu: 22 }, { c: 'cloudy', at: 32, e: 'weather.b', lu: 22 }]));
   show('C reload 60: record 28 min old', await load(60, [{ c: 'sunny' }]));
   show('D other entity at 61', await load(61, [{ c: 'rainy', e: 'weather.other' }]));
   show('D2 back to home at 62', await load(62, [{ c: 'sunny' }]));
