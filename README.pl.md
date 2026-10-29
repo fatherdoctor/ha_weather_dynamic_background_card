@@ -272,7 +272,7 @@ Zmień `hysteresis`, czyli liczbę minut, przez którą nowy stan musi się utrz
 ## Ograniczenia
 
 - Żeby znaleźć się za widokiem, karta wstawia swoją warstwę w strukturę frontendu Home Assistant, zaraz za tło widoku. Była tworzona pod frontend HA 2026.10. Starsze wersje nie były testowane, a przyszła przebudowa frontendu może wymagać aktualizacji karty.
-- Tęcza i opóźnienie zmiany sceny korzystają z historii pogody zapamiętanej w przeglądarce (`localStorage`, osobno dla każdej encji pogody). Historia przetrwa odświeżenie strony, ale nie wyczyszczenie danych witryny ani zmianę przeglądarki lub urządzenia.
+- Tęcza i opóźnienie zmiany sceny korzystają z historii pogody zapamiętanej w przeglądarce (`localStorage`, osobno dla każdej encji pogody). Historia przetrwa odświeżenie strony, ale nie wyczyszczenie danych witryny ani zmianę przeglądarki lub urządzenia. Zapis następuje najwyżej raz na minutę, więc odświeżenie w ciągu minuty od zmiany pogody może tę zmianę pominąć.
 - Stan pogody pochodzi z Twojej integracji. Wiele serwisów prognozy podaje bieżący stan z opóźnieniem.
 - Chmury są u góry nieba. Przy domyślnych, nieprzezroczystych kartach na telefonie duża ich część chowa się za pierwszymi kartami; najlepiej widać je przez półprzezroczyste karty (zob. wyżej).
 - To karta dekoracyjna. Nic w niej, łącznie z ostrzeżeniami, nie służy do podejmowania decyzji związanych z bezpieczeństwem.
