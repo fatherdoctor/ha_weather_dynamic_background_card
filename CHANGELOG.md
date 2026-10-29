@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Fixes
-- The scene-change delay (`hysteresis`) and the last rain are kept in `localStorage` per weather entity, so a page reload or a companion-app cache reset no longer restarts the delay or forgets that it just rained (the rainbow still shows for 30 minutes after rain). A shown condition the entity last reported longer ago than the delay is not restored, so a reload after a long time (or during a long outage) shows the current weather at once.
+- The scene-change delay (`hysteresis`) and the last rain are kept in `localStorage` per weather entity, so a page reload no longer restarts the delay or forgets that it just rained (the rainbow still shows for 30 minutes after rain). A shown condition the entity last reported (by Home Assistant's `last_updated`) longer ago than the delay is not restored, so a reload after a long time (or during a long outage) shows the current weather at once. The record is read only once Home Assistant's states have arrived, written at most once a minute per entity (a reload within a minute of a change can lose that change), and ignored whole if any part of it is invalid or dated in the future.
 
 ## 1.6.0 – first public release
 

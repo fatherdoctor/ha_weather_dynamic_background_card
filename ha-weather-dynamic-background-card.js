@@ -1576,18 +1576,29 @@ function writeDevice(d) {
   }
 }
 
-// The record for one weather entity, or null. Timestamps from the future (a clock change) are dropped.
+// The record for one weather entity, or null. A record is used whole or not at all: conditions the card knows,
+// timestamps that are numbers not in the future (a clock change), a pending change only beside a different shown
+// one. Anything else (an edited, truncated or future-dated record) is ignored.
 function readMemory(entity) {
   try {
     const m = JSON.parse(localStorage.getItem(MEMORY_KEY + entity) || "null");
-    if (!m || typeof m !== "object") return null;
+    if (!m || typeof m !== "object" || Array.isArray(m)) return null;
     const now = Date.now();
-    const t = (v) => (Number.isFinite(v) && v > 0 && v <= now ? v : 0);
-    const c = (v) => (typeof v === "string" && v && v.length <= 40 && v !== "unavailable" && v !== "unknown" ? v : null);
-    return { shown: c(m.shown), candidate: c(m.candidate), since: t(m.since), lastWet: t(m.lastWet), seen: t(m.seen) };
+    const time = (v) => Number.isFinite(v) && v >= 0 && v <= now;
+    const cond = (v) => v === null || (typeof v === "string" && Object.prototype.hasOwnProperty.call(CONDITIONS, v));
+    if (!time(m.since) || !time(m.lastWet) || !time(m.seen) || !cond(m.shown) || !cond(m.candidate)) return null;
+    if (m.shown ? !m.seen : m.candidate) return null;
+    if (m.candidate ? !m.since || m.candidate === m.shown : m.since) return null;
+    return { shown: m.shown, candidate: m.candidate, since: m.since, lastWet: m.lastWet, seen: m.seen };
   } catch (e) {
     return null;
   }
+}
+
+// When the entity last reported, from Home Assistant's own timestamps (capped at now), or 0 when the state has none.
+function reportTime(st) {
+  const t = Math.max(...["last_reported", "last_updated", "last_changed"].map((k) => Date.parse(st[k]) || 0));
+  return t > 0 ? Math.min(t, Date.now()) : 0;
 }
 
 function writeMemory(entity, m) {
@@ -1641,7 +1652,8 @@ class Manager {
     this.lastWet = 0;
     this.memoryEntity = null;
     this.savedMemory = "";
-    this.savedAt = 0;
+    this.savedAt = {};
+    this.saveTimer = 0;
     this.confirmed = 0;
     this.lastInput = null;
     this.scene = null;
@@ -1785,13 +1797,16 @@ class Manager {
     return input;
   }
 
-  // The shown condition, the pending one and the last rain are kept per weather entity in localStorage, so a reload
-  // or a companion-app cache reset neither restarts the scene-change delay nor forgets that it just rained. A shown
-  // condition last confirmed longer ago than the delay is not restored: any change it held back would show by now.
+  // The shown condition, the pending one and the last rain are kept per weather entity in localStorage, so a page
+  // reload neither restarts the scene-change delay nor forgets that it just rained. A shown condition the entity last
+  // reported longer ago than the delay is not restored: any change it held back would show by now. Called only once
+  // `hass` has states, so nothing before it reads the record or moves the delay.
   loadMemory() {
     const entity = this.config.weather_entity || "";
     if (entity === this.memoryEntity) return;
     this.memoryEntity = entity;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = 0;
     this.shown = null;
     this.candidate = null;
     this.since = 0;
@@ -1812,18 +1827,32 @@ class Manager {
     this.lastWet = m.lastWet;
   }
 
-  // At most one write a minute while nothing changes; at once on a change. `seen` is the last time the entity
-  // itself reported a condition, so reloads during an outage do not keep a remembered sky alive.
+  // At most one write a minute per weather entity, and only when the record changed. A change inside the minute is
+  // held and written when the minute is up, so a reload within a minute of a change can lose it. `seen` is the time
+  // the entity itself last reported a condition (its own timestamp, never the time of a refresh), so reloads during
+  // an outage do not keep a remembered sky alive; a state without timestamps leaves it unchanged.
   saveMemory() {
-    if (!this.memoryEntity || !this.hass) return;
+    const entity = this.memoryEntity;
+    if (!entity || !this.hass) return;
     const now = Date.now();
-    const st = this.hass.states[this.memoryEntity]?.state;
-    if (st && st !== "unavailable" && st !== "unknown") this.confirmed = now;
-    const key = JSON.stringify([this.shown, this.candidate, this.since, Math.floor(this.lastWet / 60000), Math.floor(this.confirmed / 60000)]);
-    if (key === this.savedMemory && now - this.savedAt < 60000) return;
-    this.savedMemory = key;
-    this.savedAt = now;
-    writeMemory(this.memoryEntity, { shown: this.shown, candidate: this.candidate, since: this.since, lastWet: this.lastWet, seen: this.confirmed });
+    const st = this.hass.states[entity];
+    if (st && st.state !== "unavailable" && st.state !== "unknown") this.confirmed = reportTime(st) || this.confirmed;
+    const m = { shown: this.shown, candidate: this.candidate, since: this.candidate ? this.since : 0, lastWet: this.lastWet, seen: this.confirmed };
+    const json = JSON.stringify(m);
+    if (json === this.savedMemory) return;
+    const wait = (this.savedAt[entity] || 0) + 60000 - now;
+    if (wait > 0) {
+      if (!this.saveTimer) {
+        this.saveTimer = setTimeout(() => {
+          this.saveTimer = 0;
+          this.saveMemory();
+        }, wait);
+      }
+      return;
+    }
+    this.savedMemory = json;
+    this.savedAt[entity] = now;
+    writeMemory(entity, m);
   }
 
   stableCondition(cond) {
@@ -1849,16 +1878,18 @@ class Manager {
   }
 
   refresh() {
-    this.loadMemory();
+    // before the first `hass` there is no weather yet: the remembered state is neither read nor moved
+    const live = !!this.hass?.states;
+    if (live) this.loadMemory();
     const input = this.readInput();
     if (input.condition === "unavailable" || input.condition === "unknown") {
       input.condition = this.shown || "partlycloudy";
     }
-    input.condition = this.stableCondition(input.condition);
+    if (live) input.condition = this.stableCondition(input.condition);
     // remember when it last rained, for the rainbow
-    if (WET.includes(input.condition)) this.lastWet = Date.now();
+    if (live && WET.includes(input.condition)) this.lastWet = Date.now();
     input.rainbow = !!this.lastWet && Date.now() - this.lastWet < 30 * 60000;
-    this.saveMemory();
+    if (live) this.saveMemory();
     const fx = this.sim.effect;
     if (fx === "rainbow") Object.assign(input, { condition: "partlycloudy", coverage: 40, elevation: 14, rainbow: true });
     if (fx === "frost") input.temperature = -8;
