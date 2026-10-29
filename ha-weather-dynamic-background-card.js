@@ -816,6 +816,9 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 :host(.still) .fog{animation:none}
 `;
 
+// ms to wake before a frame is due: the rAF that follows the timer lands on the next display frame
+const FRAME_MARGIN = 6;
+
 class SkyRenderer {
   constructor() {
     this.el = document.createElement("div");
@@ -857,6 +860,8 @@ class SkyRenderer {
     this.running = false;
     this.paused = false;
     this.lastFrame = 0;
+    this.rafId = 0;
+    this.waitTimer = 0;
     this.strike = null;
     this.nextStrike = 0;
     this.moonSprite = document.createElement("canvas");
@@ -1119,11 +1124,33 @@ class SkyRenderer {
     if (this.running || this.paused || !this.mode.animate || document.hidden || !this.el.isConnected) return;
     this.running = true;
     this.lastFrame = 0;
-    requestAnimationFrame(this._loop);
+    this.schedule(0);
   }
 
   stop() {
     this.running = false;
+    this.unschedule();
+  }
+
+  // Ask for the next frame after `wait` ms. The wait runs on a timer and the frame itself on rAF, instead of requesting
+  // every display frame and returning early, which ran the callback at 60-120 Hz while drawing at 20-60. Waits of a
+  // few ms go straight to rAF. Only one request is ever pending, so a stop() and kick() in quick succession cannot
+  // start a second chain.
+  schedule(wait) {
+    this.unschedule();
+    if (wait > 4) {
+      this.waitTimer = setTimeout(() => {
+        this.waitTimer = 0;
+        this.rafId = requestAnimationFrame(this._loop);
+      }, wait);
+    } else this.rafId = requestAnimationFrame(this._loop);
+  }
+
+  unschedule() {
+    clearTimeout(this.waitTimer);
+    cancelAnimationFrame(this.rafId);
+    this.waitTimer = 0;
+    this.rafId = 0;
   }
 
   needsFast() {
@@ -1169,7 +1196,7 @@ class SkyRenderer {
     const fast = this.needsFast();
     const fps = fast ? (this.mode.quality === "high" ? 60 : this.mode.quality === "low" ? 24 : 30) : 20;
     if (this.lastFrame && t - this.lastFrame < 1000 / fps - 2) {
-      requestAnimationFrame(this._loop);
+      this.schedule(this.lastFrame + 1000 / fps - performance.now() - FRAME_MARGIN);
       return;
     }
     const dt = this.lastFrame ? Math.min((t - this.lastFrame) / 1000, 0.1) : 1 / fps;
@@ -1196,7 +1223,7 @@ class SkyRenderer {
       this.running = false;
       return;
     }
-    requestAnimationFrame(this._loop);
+    this.schedule(t + 1000 / fps - performance.now() - FRAME_MARGIN);
   }
 
   settled() {

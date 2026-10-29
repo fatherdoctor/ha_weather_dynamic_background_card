@@ -6,6 +6,9 @@
 - `pause_entity`: while this `binary_sensor`, `input_boolean` or `switch` is `on`, the animation loop stops. Kiosk screensavers cover the page without hiding it, so the loop used to keep drawing behind a black screen.
 - `battery_saver` (off by default): with the device's quality on Automatic, the card draws at Power saving while the device is not charging, where the browser reports the battery.
 
+### Fixes
+- The frame limiter waits for the next due frame on a timer instead of requesting every display frame, so the animation loop runs once per drawn frame (at 60 Hz: 20/30/60 calls a second at low/auto/high instead of 60). Only one animation request is ever pending, so a quick stop and restart no longer starts a second loop.
+
 ## 1.6.0 – first public release
 
 ### Sky
