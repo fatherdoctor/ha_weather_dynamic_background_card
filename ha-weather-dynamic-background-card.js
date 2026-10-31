@@ -1770,7 +1770,8 @@ function writeDevice(d) {
 
 // The record for one weather entity, or null. A record is used whole or not at all: conditions the card knows,
 // timestamps that are numbers not in the future (a clock change), a pending change only beside a different shown
-// one. Anything else (an edited, truncated or future-dated record) is ignored.
+// one; `at`, the time it was written, is optional (records from before it). Anything else (an edited, truncated or
+// future-dated record) is ignored.
 function readMemory(entity) {
   try {
     const m = JSON.parse(localStorage.getItem(MEMORY_KEY + entity) || "null");
@@ -1779,12 +1780,18 @@ function readMemory(entity) {
     const time = (v) => Number.isFinite(v) && v >= 0 && v <= now;
     const cond = (v) => v === null || (typeof v === "string" && Object.prototype.hasOwnProperty.call(CONDITIONS, v));
     if (!time(m.since) || !time(m.lastWet) || !time(m.seen) || !cond(m.shown) || !cond(m.candidate)) return null;
+    if (m.at !== undefined && !time(m.at)) return null;
     if (m.shown ? !m.seen : m.candidate) return null;
     if (m.candidate ? !m.since || m.candidate === m.shown : m.since) return null;
-    return { shown: m.shown, candidate: m.candidate, since: m.since, lastWet: m.lastWet, seen: m.seen };
+    return { shown: m.shown, candidate: m.candidate, since: m.since, lastWet: m.lastWet, seen: m.seen, at: m.at || 0 };
   } catch (e) {
     return null;
   }
+}
+
+// The part of a record that says what the card knows, serialized the same way for the stored and the current one.
+function memoryJson(m) {
+  return JSON.stringify({ shown: m.shown, candidate: m.candidate, since: m.candidate ? m.since : 0, lastWet: m.lastWet, seen: m.seen });
 }
 
 // When the entity last reported, from Home Assistant's own timestamps (capped at now), or 0 when the state has none.
@@ -2026,8 +2033,10 @@ class Manager {
 
   // The shown condition, the pending one and the last rain are kept per weather entity in localStorage, so a page
   // reload neither restarts the scene-change delay nor forgets that it just rained. A shown condition the entity last
-  // reported longer ago than the delay is not restored: any change it held back would show by now. Called only once
-  // `hass` has states, so nothing before it reads the record or moves the delay.
+  // reported longer ago than the delay is not restored: any change it held back would show by now. The stored record
+  // and its write time are the baseline for saveMemory(), so returning to an entity or reloading the page does not
+  // rewrite an identical record or start a new write minute. Called only once `hass` has states, so nothing before it
+  // reads the record or moves the delay.
   loadMemory() {
     const entity = this.config.weather_entity || "";
     if (entity === this.memoryEntity) return;
@@ -2042,6 +2051,8 @@ class Manager {
     this.confirmed = 0;
     const m = entity && readMemory(entity);
     if (!m) return;
+    this.savedMemory = memoryJson(m);
+    this.savedAt[entity] = Math.max(this.savedAt[entity] || 0, m.at);
     const hyst = Math.max(0, num(this.config.hysteresis) ?? 10) * 60000;
     if (m.shown && m.seen && Date.now() - m.seen < hyst) {
       this.shown = m.shown;
@@ -2054,8 +2065,10 @@ class Manager {
     this.lastWet = m.lastWet;
   }
 
-  // At most one write a minute per weather entity, and only when the record changed. A change inside the minute is
-  // held and written when the minute is up, so a reload within a minute of a change can lose it. `seen` is the time
+  // At most one write a minute per weather entity, and only when the record changed. The minute counts from the
+  // record's own write time (`at`), so it holds across entity switches and page reloads on one browser. A change
+  // inside the minute is held and written when the minute is up, newest state only; one that goes back to the saved
+  // record cancels the write. A reload within a minute of a change can lose it. `seen` is the time
   // the entity itself last reported a condition (its own timestamp, never the time of a refresh), so reloads during
   // an outage do not keep a remembered sky alive; a state without timestamps leaves it unchanged.
   saveMemory() {
@@ -2065,8 +2078,12 @@ class Manager {
     const st = this.hass.states[entity];
     if (st && st.state !== "unavailable" && st.state !== "unknown") this.confirmed = reportTime(st) || this.confirmed;
     const m = { shown: this.shown, candidate: this.candidate, since: this.candidate ? this.since : 0, lastWet: this.lastWet, seen: this.confirmed };
-    const json = JSON.stringify(m);
-    if (json === this.savedMemory) return;
+    const json = memoryJson(m);
+    if (json === this.savedMemory) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = 0;
+      return;
+    }
     const wait = (this.savedAt[entity] || 0) + 60000 - now;
     if (wait > 0) {
       if (!this.saveTimer) {
@@ -2079,7 +2096,7 @@ class Manager {
     }
     this.savedMemory = json;
     this.savedAt[entity] = now;
-    writeMemory(entity, m);
+    writeMemory(entity, { ...m, at: now });
   }
 
   stableCondition(cond) {
