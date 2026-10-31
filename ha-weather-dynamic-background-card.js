@@ -1184,6 +1184,9 @@ class SkyRenderer {
     if (paused) {
       this.stop();
       clearTimeout(this._settleTimer);
+      // a queued cloud-generation step is canceled too; the resume schedules generation again where it stopped
+      clearTimeout(this._genTimer);
+      this._genBusy = false;
       this.holdAnimations(false);
       return;
     }
