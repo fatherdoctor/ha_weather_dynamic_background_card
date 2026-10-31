@@ -967,10 +967,10 @@ class SkyRenderer {
       }
       const more = this.genStep();
       if (!this.mode.animate) this.drawStatic();
-      if (more) setTimeout(run, 16);
+      if (more) this._genTimer = setTimeout(run, 16);
       else this._genBusy = false;
     };
-    setTimeout(run, 50);
+    this._genTimer = setTimeout(run, 50);
   }
 
   ensureFrost() {
@@ -1144,6 +1144,9 @@ class SkyRenderer {
     if (paused) {
       this.stop();
       clearTimeout(this._settleTimer);
+      // a queued cloud-generation step is canceled too; the resume schedules generation again where it stopped
+      clearTimeout(this._genTimer);
+      this._genBusy = false;
       this.holdAnimations(false);
       return;
     }
