@@ -71,22 +71,69 @@ for (const f of process.argv.slice(2)) {
   ok('P2 outage reload at 101: old sky not restored', p2b.shown !== 'sunny', p2b);
 
   // P3: one write a minute per entity, coalesced
-  const p3 = await load(200, ({ drive, io, clock, rec }) => {
+  const p3 = await load(200, ({ drive, io, clock }) => {
     drive('weather.p3', 'sunny', 200);
     const first = io.writes;
     for (let i = 0; i < 100; i++) drive('weather.p3', i % 2 ? 'sunny' : 'cloudy', 200);
     const burst = io.writes - first;
     clock(200.9999); drive('weather.p3', 'sunny', 200);
     clock(201.0001); drive('weather.p3', 'sunny', 200);
-    const boundary = io.writes - first - burst;
-    clock(201.5); drive('weather.p3', 'cloudy', 201.5);
-    const held = io.writes;
-    clock(202.6); manager.refresh();
-    return { first, burst, boundary, heldWrite: io.writes - held >= 0 && held, after: io.writes, cand: rec('weather.p3').candidate };
+    return { first, burst, boundary: io.writes - first - burst };
   });
   ok('P3 100 alternating updates at one instant: 0 extra writes', p3.burst === 0, p3);
   ok('P3 unchanged weather across a minute boundary: 0 writes', p3.boundary === 0, p3);
-  ok('P3 a held change is written once the minute is up', p3.cand === 'cloudy', p3);
+
+  // P3 deferred write (FC2): changes 59.90 s and 59.95 s after a write are held; the real timer, with no refresh(),
+  // writes once, with the newest state
+  const sec = (s) => 300 + s / 60;
+  const p3d = await load(300, async ({ drive, io, clock, rec }, t) => {
+    drive('weather.p3d', 'sunny', 300);
+    const base = io.writes;
+    clock(t.a); drive('weather.p3d', 'cloudy', 300);
+    clock(t.b); drive('weather.p3d', 'rainy', 300);
+    const immediate = io.writes - base;
+    clock(t.c);
+    await new Promise((r) => setTimeout(r, 400));
+    return { immediate, flushed: io.writes - base, cand: rec('weather.p3d').candidate, timer: manager.saveTimer };
+  }, { a: sec(59.9), b: sec(59.95), c: sec(60.5) });
+  ok('P3 change inside the minute: no immediate write', p3d.immediate === 0, p3d);
+  ok('P3 the timer alone writes once, the newest state', p3d.flushed === 1 && p3d.cand === 'rainy' && !p3d.timer, p3d);
+
+  // P3 a held change that goes back to the saved record writes nothing
+  const p3c = await load(400, async ({ drive, io, clock }, t) => {
+    drive('weather.p3c', 'sunny', 400);
+    const base = io.writes;
+    clock(t.a); drive('weather.p3c', 'cloudy', 400);
+    const held = !!manager.saveTimer;
+    clock(t.b); drive('weather.p3c', 'sunny', 400);
+    const canceled = !manager.saveTimer;
+    clock(t.c);
+    await new Promise((r) => setTimeout(r, 400));
+    return { held, canceled, writes: io.writes - base };
+  }, { a: 400 + 59.9 / 60, b: 400 + 59.92 / 60, c: 401.5 });
+  ok('P3 back to the saved record: write canceled', p3c.held && p3c.canceled && p3c.writes === 0, p3c);
+
+  // P3 reselection (FC1): away to another entity and back, nothing changed: no rewrite
+  const p3r = await load(500, ({ drive, io, clock }) => {
+    drive('weather.p3r', 'sunny', 500);
+    drive('weather.other', 'cloudy', 500);
+    const base = io.writes;
+    clock(502); drive('weather.p3r', 'sunny', 500);
+    return { writes: io.writes - base, shown: manager.shown };
+  });
+  ok('P3 reselect an unchanged entity: 0 writes', p3r.writes === 0 && p3r.shown === 'sunny', p3r);
+
+  // P3 same-origin reload (FC1): an identical record is not rewritten, and the write minute holds across the reload
+  await load(600, ({ drive }) => drive('weather.p3o', 'sunny', 600));
+  const p3o = await load(600 + 0.1 / 60, ({ drive, io }) => { drive('weather.p3o', 'sunny', 600); return { writes: io.writes, shown: manager.shown }; });
+  ok('P3 reload 100 ms later, same weather: 0 writes', p3o.writes === 0 && p3o.shown === 'sunny', p3o);
+  const p3m = await load(600.5, ({ drive, io, clock, rec }) => {
+    drive('weather.p3o', 'cloudy', 600.5);
+    const immediate = io.writes;
+    clock(601.0001); manager.refresh();
+    return { immediate, after: io.writes, cand: rec('weather.p3o').candidate };
+  });
+  ok('P3 reload 30 s after a write: change held to the minute', p3m.immediate === 0 && p3m.after === 1 && p3m.cand === 'cloudy', p3m);
 
   // P4: whole-record rejection
   const fresh = BASE + 299 * MIN;
@@ -95,8 +142,10 @@ for (const f of process.argv.slice(2)) {
     localStorage.setItem(KEY + 'weather.fut', JSON.stringify({ shown: 'cloudy', candidate: null, since: 0, lastWet: BASE + 999 * MIN, seen: fresh }));
     localStorage.setItem(KEY + 'weather.arr', JSON.stringify([1, 2]));
     localStorage.setItem(KEY + 'weather.cand', JSON.stringify({ shown: null, candidate: 'rainy', since: fresh, lastWet: 0, seen: 0 }));
+    localStorage.setItem(KEY + 'weather.wet', JSON.stringify({ shown: 'bogus', candidate: null, since: 0, lastWet: fresh, seen: fresh }));
+    localStorage.setItem(KEY + 'weather.at', JSON.stringify({ shown: 'cloudy', candidate: null, since: 0, lastWet: fresh, seen: fresh, at: BASE + 999 * MIN }));
     const r = {};
-    for (const e of ['weather.bogus', 'weather.fut', 'weather.arr', 'weather.cand']) {
+    for (const e of ['weather.bogus', 'weather.fut', 'weather.arr', 'weather.cand', 'weather.wet', 'weather.at']) {
       drive(e, 'sunny', 300);
       r[e] = { shown: manager.shown, cand: manager.candidate, rainbow: manager.lastInput.rainbow };
     }
@@ -104,6 +153,8 @@ for (const f of process.argv.slice(2)) {
   }, fresh);
   ok('P4 unknown shown condition: record ignored', p4['weather.bogus'].shown === 'sunny', p4['weather.bogus']);
   ok('P4 future lastWet: whole record ignored', p4['weather.fut'].shown === 'sunny' && !p4['weather.fut'].rainbow, p4['weather.fut']);
+  ok('P4 valid recent lastWet in an invalid record: no rainbow', !p4['weather.wet'].rainbow, p4['weather.wet']);
+  ok('P4 future write time: whole record ignored', p4['weather.at'].shown === 'sunny' && !p4['weather.at'].rainbow, p4['weather.at']);
   ok('P4 not an object / pending without shown: ignored', p4['weather.arr'].shown === 'sunny' && p4['weather.cand'].cand === null, p4);
 
   console.log(f.split('/').pop());

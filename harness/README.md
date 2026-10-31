@@ -49,10 +49,15 @@ exits non-zero on a failure:
   reads and writes no weather memory before `hass` and keeps a pending change's start across the reload; P2 the
   record's `seen` is the entity's `last_updated`, not the time of refreshes, so an outage reload does not restore an
   old sky; P3 100 alternating updates at one instant and an unchanged state across a minute boundary write nothing
-  more, a held change is written when the minute is up; P4 an unknown condition, a future-dated timestamp, a
-  non-object and a pending change without a shown one each make the whole record ignored.
+  more; changes 59.90 s and 59.95 s after a write are not written at once, and the real timer alone (no refresh)
+  writes once, the newest; a held change that goes back to the saved record cancels the write; returning to an
+  unchanged entity and reloading 100 ms later write nothing, and a reload 30 s after a write holds a change to the
+  minute (WDB1c.f2 FC1, FC2); P4 an unknown condition, a future-dated timestamp or write time, a non-object and a
+  pending change without a shown one each make the whole record ignored, and a valid recent `lastWet` in an invalid
+  record restores no rainbow.
 - `pause-extra.mjs <build.js>...`: A1 five immediate screensaver on/off pairs leave one animation chain, and none
   after the pause; A2 while paused no loop callbacks, no running CSS animations (fog, warning glow), no cloud
   generation, no sky fade on a scene change, and a quality change plus a window resize keep the drawn pixels; on
-  resume the waiting quality and scene apply and the animations and loop run again.
+  resume the waiting quality and scene apply and the animations and loop run again. Pausing clears the queued
+  cloud-generation step at once (WDB1c.f2 FC3), and generation goes on after the resume.
 - `persist.mjs` now gives states a `last_updated` (the step's `lu` minute, else the clock), as Home Assistant does.

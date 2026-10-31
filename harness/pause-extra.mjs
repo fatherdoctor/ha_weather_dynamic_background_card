@@ -52,6 +52,8 @@ for (const f of process.argv.slice(2)) {
     const runBefore = running();
     const genBefore = gens, decksPending = r.decks.some((d) => !d.done);
     set(hass('on', 'fog', 30, 'on'));
+    // FC3: the queued generation step is canceled at once, not left to wake and exit
+    const busyAtPause = r._genBusy;
     // a pixel on the effects canvas stands in for the last drawn frame
     r.ctx.setTransform(1, 0, 0, 1, 0, 0); r.ctx.fillStyle = '#ff0000'; r.ctx.fillRect(0, 0, 2, 2);
     gens = 0; calls = 0;
@@ -60,6 +62,7 @@ for (const f of process.argv.slice(2)) {
     ok('A2 cloud decks still generating at pause', genBefore > 0 && decksPending, genBefore);
     ok('A2 paused: no running CSS animations', running() === 0, running());
     ok('A2 paused: no cloud-generation steps', gens === 0, gens);
+    ok('A2 pause cancels the queued generation timeout', busyAtPause === false, busyAtPause);
     ok('A2 paused: no loop callbacks', calls === 0, calls);
     // a sun move while paused must not start a sky fade or its settle timer
     const gradBefore = r.gradient, bBefore = r.$('skyB').style.background;
@@ -80,6 +83,7 @@ for (const f of process.argv.slice(2)) {
     ok('A2 resume: scene applied', r.gradient !== gradBefore, '');
     ok('A2 resume: CSS animations running again', running() >= 2, running());
     ok('A2 resume: loop runs', calls > 0, calls);
+    ok('A2 resume: cloud generation goes on', gens > 0 || r.decks.every((d) => d.done), gens);
     manager.setDevice({ quality: 'auto' });
     return checks;
   });
