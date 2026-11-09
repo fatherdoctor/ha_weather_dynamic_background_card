@@ -3,6 +3,8 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories/)
 [![Release](https://img.shields.io/github/v/release/michaldyr/ha-weather-dynamic-background-card)](https://github.com/michaldyr/ha-weather-dynamic-background-card/releases)
 
+> This is a fork of [michaldyr/ha-weather-dynamic-background-card](https://github.com/michaldyr/ha-weather-dynamic-background-card) (MIT). The [`patches`](https://github.com/fatherdoctor/ha_weather_dynamic_background_card/tree/patches) branch adds a speed option, pause_entity, a battery saver, rain state kept across reloads, and fixes to frame scheduling and sun transforms. The badges and install steps below are upstream's. To use the patched build, add `ha-weather-dynamic-background-card.js` from the `patches` branch as a dashboard resource, or install upstream.
+
 🇬🇧 English · [🇵🇱 Polski](README.pl.md)
 
 A living background for your Home Assistant dashboard. The sky behind your cards follows the real weather, the position of the sun and the phase of the moon.
